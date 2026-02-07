@@ -1,0 +1,21 @@
+<div class="flex flex-wrap items-center gap-1.5">
+    {% for tag in step.tags.all %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+            {% if tag.tag_type == 'pivot' %}bg-purple-500/20 text-purple-300 border border-purple-500/20
+            {% elif tag.tag_type == 'correction' %}bg-red-500/20 text-red-300 border border-red-500/20
+            {% else %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/20{% endif %}">
+        {{ tag.get_tag_type_display }}
+    </span>
+    {% endfor %}
+
+    <form hx-post="{% url 'add_tag' step.id %}" hx-target="#tags-step-{{ step.id }}" hx-swap="innerHTML" class="inline-block">
+        {% csrf_token %}
+        <select name="tag_type" onchange="this.form.requestSubmit()"
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-gray-800 text-gray-400 border border-gray-700 rounded px-1.5 py-0.5 cursor-pointer hover:text-white focus:outline-none">
+            <option value="" disabled selected>+ Tag</option>
+            <option value="pivot">Pivot</option>
+            <option value="correction">Correction</option>
+            <option value="architecture">Architecture</option>
+        </select>
+    </form>
+</div>

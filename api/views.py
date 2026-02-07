@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import timedelta
 from string import Template
@@ -228,11 +229,21 @@ def session_create(request):
         if existing:
             return _session_to_json(existing, status=200)
 
+    # Content hash dedup: hash the JSON body for structured uploads
+    content_hash = hashlib.sha256(request.body).hexdigest()
+    existing = Session.objects.filter(
+        user=request.api_user,
+        content_hash=content_hash,
+    ).first()
+    if existing:
+        return _session_to_json(existing, status=200)
+
     session = Session.objects.create(
         user=request.api_user,
         title=body.get('title', 'Untitled Session'),
         source=source,
         source_session_id=source_session_id,
+        content_hash=content_hash,
         duration_seconds=body.get('duration_seconds'),
         token_usage=body.get('token_usage'),
         file_count=body.get('file_count'),
@@ -258,21 +269,33 @@ def session_upload(request):
     """
     POST /api/v1/sessions/upload/
     Upload a raw .md/.jsonl file for server-side parsing.
+    Deduplicates on content_hash per user.
     """
     uploaded_file = request.FILES.get('file')
     if not uploaded_file:
         return JsonResponse({'error': 'No file provided'}, status=400)
 
     content = uploaded_file.read()
+    content_hash = hashlib.sha256(content).hexdigest()
+
+    # Dedup: return existing session if same content was already uploaded by this user
+    existing = Session.objects.filter(
+        user=request.api_user,
+        content_hash=content_hash,
+    ).first()
+    if existing:
+        return _session_to_json(existing, status=200)
+
     title = request.POST.get('title', uploaded_file.name)
 
     parser = TranscriptParser(content)
     session = parser.parse(title=title)
 
-    # Attach user and source info
+    # Attach user, source info, and content hash
     session.user = request.api_user
     session.source = request.POST.get('source', 'upload')
     session.source_session_id = request.POST.get('source_session_id', '')
+    session.content_hash = content_hash
     session.save()
 
     return _session_to_json(session, status=201)

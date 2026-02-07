@@ -81,16 +81,25 @@ func (c *ClaudeCode) ParseFile(filePath string) (*api.SessionCreateRequest, erro
 		}
 
 		// Extract text from message.content
-		text, stepType := extractMessageContent(entry.Message.Content)
+		text, stepType, hasToolResult := extractMessageContent(entry.Message.Content)
 		if text == "" {
 			continue
 		}
 
 		role := "agent"
 		if entry.Type == "user" || entry.Type == "human" {
-			role = "user"
-			if stepType == "" {
-				stepType = "prompt"
+			if hasToolResult {
+				// tool_result relays are sent as type=user by the API
+				// but they're not real human inputs
+				role = "system"
+				if stepType == "" {
+					stepType = "text"
+				}
+			} else {
+				role = "user"
+				if stepType == "" {
+					stepType = "prompt"
+				}
 			}
 		} else if entry.Type == "system" {
 			role = "system"
@@ -112,25 +121,27 @@ func (c *ClaudeCode) ParseFile(filePath string) (*api.SessionCreateRequest, erro
 }
 
 // extractMessageContent handles both string content and array-of-blocks content.
-func extractMessageContent(raw json.RawMessage) (string, string) {
+// Returns (text, stepType, hasToolResult).
+func extractMessageContent(raw json.RawMessage) (string, string, bool) {
 	if len(raw) == 0 {
-		return "", ""
+		return "", "", false
 	}
 
 	// Try string first
 	var str string
 	if err := json.Unmarshal(raw, &str); err == nil {
-		return str, ""
+		return str, "", false
 	}
 
 	// Try array of content blocks
 	var blocks []contentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return "", ""
+		return "", "", false
 	}
 
 	var parts []string
 	stepType := ""
+	hasToolResult := false
 
 	for _, block := range blocks {
 		switch block.Type {
@@ -150,13 +161,21 @@ func extractMessageContent(raw json.RawMessage) (string, string) {
 			}
 			parts = append(parts, desc)
 		case "tool_result":
-			var resultContent string
-			// tool_result content can be string or nested blocks
-			if json.Unmarshal(block.Input, &resultContent) == nil {
-				parts = append(parts, resultContent)
+			hasToolResult = true
+			// Extract content from tool_result block
+			if block.Text != "" {
+				parts = append(parts, block.Text)
+			}
+			// tool_result may have nested content in a 'content' field
+			// which we stored in Input for simplicity — try to parse it
+			if len(block.Input) > 0 {
+				var resultStr string
+				if json.Unmarshal(block.Input, &resultStr) == nil {
+					parts = append(parts, resultStr)
+				}
 			}
 		}
 	}
 
-	return strings.Join(parts, "\n"), stepType
+	return strings.Join(parts, "\n"), stepType, hasToolResult
 }

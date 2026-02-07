@@ -26,6 +26,10 @@ class Session(models.Model):
         max_length=255, blank=True, default='',
         help_text="Original session ID from the source tool",
     )
+    content_hash = models.CharField(
+        max_length=64, blank=True, default='', db_index=True,
+        help_text="SHA-256 hash of uploaded content for dedup",
+    )
 
     # Metadata extracted from the transcript
     duration_seconds = models.IntegerField(null=True, blank=True)

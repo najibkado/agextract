@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}@{{ profile_user.username }} — agextract{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto mt-8">
+
+    <!-- Profile Header -->
+    <div class="bg-gray-800/40 backdrop-blur border border-gray-700/50 rounded-2xl p-8 mb-8">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-5">
+                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-accent to-blue-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg shadow-brand-accent/20">
+                    {{ profile_user.username.0|upper }}
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">{{ profile_user.username }}</h1>
+                    <p class="text-gray-400 mt-1">{{ sessions.count }} session{{ sessions.count|pluralize }} recorded</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        {% if total_steps > 0 %}
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-8">
+            <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-gray-700/30">
+                <div class="text-2xl font-bold text-white">{{ total_steps }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Total Steps</div>
+            </div>
+            <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-gray-700/30">
+                <div class="text-2xl font-bold text-brand-accent">{{ user_steps }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Human Inputs</div>
+            </div>
+            <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-gray-700/30">
+                <div class="text-2xl font-bold text-purple-400">{{ tool_calls }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Tool Calls</div>
+            </div>
+            <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-gray-700/30">
+                <div class="text-2xl font-bold text-amber-400">{{ tags_count }}</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Steering Tags</div>
+            </div>
+            <div class="bg-gray-900/50 rounded-xl p-4 text-center border border-gray-700/30">
+                <div class="text-2xl font-bold text-emerald-400">{{ steering_ratio }}%</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Steering Ratio</div>
+            </div>
+        </div>
+
+        <!-- Steering Ratio Explanation -->
+        <div class="mt-4 flex items-center space-x-3">
+            <div class="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-brand-accent to-blue-500 rounded-full transition-all" style="width: min({{ steering_ratio }}%, 100%)"></div>
+            </div>
+            <span class="text-xs text-gray-500 whitespace-nowrap">Human / AI ratio</span>
+        </div>
+
+        <!-- Tool Badges -->
+        {% if source_counts %}
+        <div class="flex flex-wrap gap-2 mt-6">
+            {% for source, count in source_counts.items %}
+            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold
+                {% if source == 'claudecode' %}bg-orange-500/10 text-orange-300 border border-orange-500/20
+                {% elif source == 'cursor' %}bg-purple-500/10 text-purple-300 border border-purple-500/20
+                {% elif source == 'windsurf' %}bg-green-500/10 text-green-300 border border-green-500/20
+                {% elif source == 'copilot' %}bg-blue-500/10 text-blue-300 border border-blue-500/20
+                {% else %}bg-gray-700/50 text-gray-300 border border-gray-600/30{% endif %}">
+                {% if source == 'claudecode' %}Claude Code{% elif source == 'cursor' %}Cursor{% elif source == 'windsurf' %}Windsurf{% elif source == 'copilot' %}GitHub Copilot{% else %}Upload{% endif %}
+                <span class="ml-1.5 bg-white/10 px-1.5 py-0.5 rounded text-[10px]">{{ count }}</span>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- Sessions List -->
+    {% if sessions %}
+    <div class="space-y-3">
+        {% for session in sessions %}
+        <a href="{% url 'session_detail' session_id=session.id %}"
+           class="block bg-gray-800/30 backdrop-blur border border-gray-700/40 rounded-xl p-5 hover:bg-gray-800/60 hover:border-brand-accent/30 transition-all group">
+            <div class="flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center space-x-3">
+                        <h3 class="text-white font-semibold group-hover:text-brand-accent transition-colors truncate">
+                            {{ session.title }}
+                        </h3>
+                    </div>
+                    <div class="flex items-center space-x-3 mt-2 text-sm text-gray-500">
+                        <span>{{ session.uploaded_at|timesince }} ago</span>
+                        <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if session.source == 'claudecode' %}bg-orange-900/30 text-orange-400
+                            {% elif session.source == 'cursor' %}bg-purple-900/30 text-purple-400
+                            {% elif session.source == 'windsurf' %}bg-green-900/30 text-green-400
+                            {% elif session.source == 'copilot' %}bg-blue-900/30 text-blue-400
+                            {% else %}bg-gray-700/50 text-gray-400{% endif %}">
+                            {{ session.get_source_display }}
+                        </span>
+                        <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                        <span>{{ session.steps.count }} step{{ session.steps.count|pluralize }}</span>
+                        {% if session.duration_seconds %}
+                        <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                        <span>{{ session.duration_seconds|floatformat:0 }}s</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <svg class="w-5 h-5 text-gray-600 group-hover:text-brand-accent transition-colors flex-shrink-0 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-20">
+        <p class="text-gray-500 text-lg">No sessions recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

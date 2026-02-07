@@ -1,0 +1,21 @@
+<div class="animate-fade-in-up">
+    <div class="bg-gray-800/60 backdrop-blur border border-gray-700/50 rounded-2xl p-6">
+        <div class="flex items-center space-x-3 mb-4">
+            <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide
+                {% if step.role == 'user' %}bg-brand-accent/20 text-brand-accent border border-brand-accent/20
+                {% elif step.step_type == 'tool_call' %}bg-purple-500/20 text-purple-400 border border-purple-500/20
+                {% else %}bg-gray-700/40 text-gray-400 border border-gray-600/20{% endif %}">
+                {% if step.role == 'user' %}Human{% elif step.step_type == 'tool_call' %}Tool Call{% else %}AI{% endif %}
+            </span>
+            <span class="text-gray-600 text-sm font-mono">Step {{ step.order }}</span>
+            {% if step.tags.exists %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                {{ step.tags.first.get_tag_type_display }}
+            </span>
+            {% endif %}
+        </div>
+        <div class="{% if step.step_type == 'tool_call' or step.step_type == 'diff' %}bg-gray-950 rounded-lg p-4 border border-gray-800/50{% endif %}">
+            <pre class="text-sm leading-relaxed whitespace-pre-wrap break-words {% if step.role == 'user' %}text-gray-200{% else %}text-gray-400{% endif %} {% if step.step_type == 'tool_call' or step.step_type == 'diff' %}font-mono text-xs{% endif %}">{{ step.content|truncatechars:3000 }}</pre>
+        </div>
+    </div>
+</div>

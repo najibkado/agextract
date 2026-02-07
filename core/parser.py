@@ -38,12 +38,19 @@ class TranscriptParser:
             content = ''
 
             if msg_type in ('human', 'user'):
-                role = 'user'
-                step_type = 'prompt'
+                # Check if this is a tool_result relay (Claude API sends tool
+                # results as role=user, but they aren't real human inputs)
+                if self._is_tool_result_relay(entry):
+                    role = 'system'
+                    step_type = 'text'
+                else:
+                    role = 'user'
+                    step_type = 'prompt'
                 content = self._extract_jsonl_content(entry)
             elif msg_type in ('assistant', 'agent'):
+                # Detect if the assistant message contains tool_use blocks
                 role = 'agent'
-                step_type = 'text'
+                step_type = self._detect_assistant_step_type(entry)
                 content = self._extract_jsonl_content(entry)
             elif msg_type in ('tool_use', 'tool_call'):
                 role = 'agent'
@@ -66,6 +73,34 @@ class TranscriptParser:
         session.file_count = 1
         session.save()
         return session
+
+    def _is_tool_result_relay(self, entry):
+        """Check if a 'user' type entry is actually a tool_result relay."""
+        msg = entry.get('message', {})
+        if not isinstance(msg, dict):
+            return False
+        content = msg.get('content', '')
+        if isinstance(content, list):
+            return any(
+                isinstance(b, dict) and b.get('type') == 'tool_result'
+                for b in content
+            )
+        return False
+
+    def _detect_assistant_step_type(self, entry):
+        """Detect if assistant message is text or tool_call."""
+        msg = entry.get('message', {})
+        if not isinstance(msg, dict):
+            return 'text'
+        content = msg.get('content', '')
+        if isinstance(content, list):
+            has_tool = any(
+                isinstance(b, dict) and b.get('type') == 'tool_use'
+                for b in content
+            )
+            if has_tool:
+                return 'tool_call'
+        return 'text'
 
     def _extract_jsonl_content(self, entry):
         """Extract text content from a JSONL entry."""

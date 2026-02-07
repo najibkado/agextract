@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}My Sessions — agextract{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto mt-8">
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-white">My Sessions</h1>
+            <p class="text-gray-400 mt-1">{{ sessions.count }} session{{ sessions.count|pluralize }} recorded</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <a href="{% url 'public_profile' username=user.username %}"
+               class="text-sm text-gray-400 hover:text-white border border-gray-600 px-4 py-2 rounded-lg transition-colors">
+                Public profile
+            </a>
+            <a href="{% url 'upload' %}"
+               class="bg-brand-accent hover:bg-sky-500 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm">
+                + Upload
+            </a>
+        </div>
+    </div>
+
+    {% if sessions %}
+    <div class="space-y-3">
+        {% for session in sessions %}
+        <a href="{% url 'session_detail' session_id=session.id %}"
+           class="block bg-gray-800/30 backdrop-blur border border-gray-700/40 rounded-xl p-5 hover:bg-gray-800/60 hover:border-brand-accent/30 transition-all group">
+            <div class="flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-white font-semibold group-hover:text-brand-accent transition-colors truncate">
+                        {{ session.title }}
+                    </h3>
+                    <div class="flex items-center space-x-3 mt-2 text-sm text-gray-500">
+                        <span>{{ session.uploaded_at|timesince }} ago</span>
+                        <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if session.source == 'claudecode' %}bg-orange-900/30 text-orange-400
+                            {% elif session.source == 'cursor' %}bg-purple-900/30 text-purple-400
+                            {% elif session.source == 'windsurf' %}bg-green-900/30 text-green-400
+                            {% elif session.source == 'copilot' %}bg-blue-900/30 text-blue-400
+                            {% else %}bg-gray-700/50 text-gray-400{% endif %}">
+                            {{ session.get_source_display }}
+                        </span>
+                        <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                        <span>{{ session.steps.count }} step{{ session.steps.count|pluralize }}</span>
+                    </div>
+                </div>
+                <svg class="w-5 h-5 text-gray-600 group-hover:text-brand-accent transition-colors flex-shrink-0 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-20 bg-gray-800/20 rounded-2xl border border-gray-700/30">
+        <div class="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+        </div>
+        <p class="text-gray-400 text-lg mb-2">No sessions yet</p>
+        <p class="text-gray-600 text-sm mb-6">Upload a transcript or use the CLI to sync sessions automatically.</p>
+        <div class="flex items-center justify-center space-x-3">
+            <a href="{% url 'upload' %}"
+               class="bg-brand-accent hover:bg-sky-500 text-white font-medium px-6 py-3 rounded-lg transition-colors">
+                Upload session
+            </a>
+            <span class="text-gray-600 text-sm">or run</span>
+            <code class="text-brand-accent bg-gray-800 px-3 py-2 rounded-lg text-sm font-mono">agextract watch</code>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

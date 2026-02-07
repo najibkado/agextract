@@ -41,8 +41,8 @@ class AgExtractFlowTest(TestCase):
         response = self.client.get(redirect_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "temp_test.md") 
-        self.assertContains(response, "toggleVisibility") # Check for JS function
-        self.assertContains(response, "role-user") # Check for new classes
+        self.assertContains(response, "filterSteps") # Check for JS function
+        self.assertContains(response, "step-role-user") # Check for step classes
         
         print("Flow test passed!")
         
@@ -72,4 +72,4 @@ class AgExtractFlowTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Card Content")
-        self.assertContains(response, "Input Context") # Check for card header
+        self.assertContains(response, "Human") # Check for role label in card

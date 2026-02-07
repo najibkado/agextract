@@ -1,3 +1,4 @@
+import hashlib
 from collections import Counter
 
 from django.contrib.auth import authenticate, login, logout
@@ -16,14 +17,25 @@ def upload_view(request):
         if form.is_valid():
             uploaded_file = request.FILES['file']
             content = uploaded_file.read()
+            content_hash = hashlib.sha256(content).hexdigest()
+
+            # Dedup: return existing session if same content already uploaded
+            if request.user.is_authenticated:
+                existing = Session.objects.filter(
+                    user=request.user,
+                    content_hash=content_hash,
+                ).first()
+                if existing:
+                    return redirect('session_detail', session_id=existing.id)
 
             parser = TranscriptParser(content)
             session = parser.parse(title=uploaded_file.name)
 
-            # Associate session with logged-in user
+            # Associate session with logged-in user and store hash
             if request.user.is_authenticated:
                 session.user = request.user
-                session.save()
+            session.content_hash = content_hash
+            session.save()
 
             return redirect('session_detail', session_id=session.id)
     else:
@@ -67,17 +79,56 @@ def dashboard(request):
 def public_profile(request, username):
     profile_user = get_object_or_404(User, username=username)
     sessions = Session.objects.filter(user=profile_user).order_by('-uploaded_at')
+
+    # Compute profile stats
+    total_steps = Step.objects.filter(session__user=profile_user).count()
+    user_steps = Step.objects.filter(session__user=profile_user, role='user').count()
+    agent_steps = Step.objects.filter(session__user=profile_user, role='agent').count()
+    tool_calls = Step.objects.filter(session__user=profile_user, step_type='tool_call').count()
+    tags_count = SteeringTag.objects.filter(step__session__user=profile_user).count()
+
+    # Source breakdown
+    source_counts = dict(
+        sessions.values_list('source').annotate(c=Count('id')).values_list('source', 'c')
+    )
+
+    # Steering ratio (how actively the person guides the AI)
+    steering_ratio = round(user_steps / max(agent_steps, 1) * 100)
+
     return render(request, 'core/public_profile.html', {
         'profile_user': profile_user,
         'sessions': sessions,
+        'total_steps': total_steps,
+        'user_steps': user_steps,
+        'agent_steps': agent_steps,
+        'tool_calls': tool_calls,
+        'tags_count': tags_count,
+        'source_counts': source_counts,
+        'steering_ratio': steering_ratio,
     })
+
 
 def session_detail(request, session_id):
     session = get_object_or_404(Session, id=session_id)
     steps = session.steps.all().prefetch_related('tags')
+
+    # Session-level stats
+    total = steps.count()
+    user_count = steps.filter(role='user').count()
+    agent_count = steps.filter(role='agent').count()
+    tool_count = steps.filter(step_type='tool_call').count()
+    tag_count = SteeringTag.objects.filter(step__session=session).count()
+    steering_ratio = round(user_count / max(agent_count, 1) * 100)
+
     return render(request, 'core/session_detail.html', {
         'session': session,
-        'steps': steps
+        'steps': steps,
+        'total_steps': total,
+        'user_count': user_count,
+        'agent_count': agent_count,
+        'tool_count': tool_count,
+        'tag_count': tag_count,
+        'steering_ratio': steering_ratio,
     })
 
 def add_tag(request, step_id):
