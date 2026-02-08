@@ -4,6 +4,24 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto mt-8">
+    <!-- Summary Stats -->
+    {% if total_sessions > 0 %}
+    <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-gray-800/40 backdrop-blur border border-gray-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-white">{{ total_sessions }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Total Sessions</div>
+        </div>
+        <div class="bg-gray-800/40 backdrop-blur border border-gray-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-brand-accent">{{ total_steps }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Total Steps</div>
+        </div>
+        <div class="bg-gray-800/40 backdrop-blur border border-gray-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-emerald-400">{{ sessions_this_month }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">This Month</div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="flex items-center justify-between mb-8">
         <div>
             <h1 class="text-3xl font-bold text-white">My Sessions</h1>

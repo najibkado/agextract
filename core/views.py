@@ -1,11 +1,14 @@
 import hashlib
+import json
 from collections import Counter
+from datetime import date, timedelta
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db.models import Count, Sum, Q
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from .forms import UploadSessionForm
 from .models import Session, Step, SteeringTag
 from .parser import TranscriptParser
@@ -73,7 +76,21 @@ def web_logout(request):
 @login_required(login_url='/login/')
 def dashboard(request):
     sessions = Session.objects.filter(user=request.user).order_by('-uploaded_at')
-    return render(request, 'core/dashboard.html', {'sessions': sessions})
+
+    # Dashboard summary stats
+    total_sessions = sessions.count()
+    total_steps = Step.objects.filter(session__user=request.user).count()
+    now = timezone.now()
+    sessions_this_month = sessions.filter(
+        uploaded_at__year=now.year, uploaded_at__month=now.month
+    ).count()
+
+    return render(request, 'core/dashboard.html', {
+        'sessions': sessions,
+        'total_sessions': total_sessions,
+        'total_steps': total_steps,
+        'sessions_this_month': sessions_this_month,
+    })
 
 
 def public_profile(request, username):
@@ -84,6 +101,7 @@ def public_profile(request, username):
     total_steps = Step.objects.filter(session__user=profile_user).count()
     user_steps = Step.objects.filter(session__user=profile_user, role='user').count()
     agent_steps = Step.objects.filter(session__user=profile_user, role='agent').count()
+    system_steps = Step.objects.filter(session__user=profile_user, role='system').count()
     tool_calls = Step.objects.filter(session__user=profile_user, step_type='tool_call').count()
     tags_count = SteeringTag.objects.filter(step__session__user=profile_user).count()
 
@@ -95,6 +113,62 @@ def public_profile(request, username):
     # Steering ratio (how actively the person guides the AI)
     steering_ratio = round(user_steps / max(agent_steps, 1) * 100)
 
+    # --- Chart data ---
+
+    # Activity heatmap: session counts per day for last 365 days
+    today = date.today()
+    year_ago = today - timedelta(days=364)
+    activity_qs = (
+        sessions.filter(uploaded_at__date__gte=year_ago)
+        .values('uploaded_at__date')
+        .annotate(count=Count('id'))
+    )
+    activity_data = {str(row['uploaded_at__date']): row['count'] for row in activity_qs}
+
+    # Role distribution for donut chart
+    role_distribution = {
+        'user': user_steps,
+        'agent': agent_steps,
+        'system': system_steps,
+    }
+
+    # Source distribution for horizontal bar
+    source_display = {
+        'claudecode': 'Claude Code',
+        'cursor': 'Cursor',
+        'windsurf': 'Windsurf',
+        'copilot': 'GitHub Copilot',
+        'upload': 'Upload',
+    }
+    source_distribution = {source_display.get(k, k): v for k, v in source_counts.items()}
+
+    # Sessions over time: last 12 months
+    twelve_months_ago = today - timedelta(days=365)
+    sessions_by_month = (
+        sessions.filter(uploaded_at__date__gte=twelve_months_ago)
+        .extra(select={'month': "strftime('%%Y-%%m', uploaded_at)"})
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+    # Build full 12-month series
+    months_list = []
+    for i in range(12):
+        m = (today.replace(day=1) - timedelta(days=30 * (11 - i)))
+        months_list.append(m.strftime('%Y-%m'))
+    month_counts = {row['month']: row['count'] for row in sessions_by_month}
+    sessions_over_time = [
+        {'month': m, 'count': month_counts.get(m, 0)} for m in months_list
+    ]
+
+    # Step type distribution for donut
+    step_type_qs = (
+        Step.objects.filter(session__user=profile_user)
+        .values('step_type')
+        .annotate(count=Count('id'))
+    )
+    step_type_distribution = {row['step_type']: row['count'] for row in step_type_qs}
+
     return render(request, 'core/public_profile.html', {
         'profile_user': profile_user,
         'sessions': sessions,
@@ -105,6 +179,11 @@ def public_profile(request, username):
         'tags_count': tags_count,
         'source_counts': source_counts,
         'steering_ratio': steering_ratio,
+        'activity_data_json': json.dumps(activity_data),
+        'role_distribution_json': json.dumps(role_distribution),
+        'source_distribution_json': json.dumps(source_distribution),
+        'sessions_over_time_json': json.dumps(sessions_over_time),
+        'step_type_distribution_json': json.dumps(step_type_distribution),
     })
 
 
@@ -120,6 +199,22 @@ def session_detail(request, session_id):
     tag_count = SteeringTag.objects.filter(step__session=session).count()
     steering_ratio = round(user_count / max(agent_count, 1) * 100)
 
+    # Conversation flow: group steps in chunks of 20
+    chunk_size = 20
+    steps_list = list(steps.values('role', 'step_type', 'order'))
+    conversation_flow = []
+    for i in range(0, max(len(steps_list), 1), chunk_size):
+        chunk = steps_list[i:i + chunk_size]
+        chunk_num = i // chunk_size + 1
+        label = f"{i + 1}-{min(i + chunk_size, len(steps_list))}"
+        conversation_flow.append({
+            'chunk': label,
+            'user': sum(1 for s in chunk if s['role'] == 'user'),
+            'agent': sum(1 for s in chunk if s['role'] == 'agent' and s['step_type'] != 'tool_call'),
+            'tool': sum(1 for s in chunk if s['step_type'] == 'tool_call'),
+            'system': sum(1 for s in chunk if s['role'] == 'system'),
+        })
+
     return render(request, 'core/session_detail.html', {
         'session': session,
         'steps': steps,
@@ -129,6 +224,7 @@ def session_detail(request, session_id):
         'tool_count': tool_count,
         'tag_count': tag_count,
         'steering_ratio': steering_ratio,
+        'conversation_flow_json': json.dumps(conversation_flow),
     })
 
 def add_tag(request, step_id):

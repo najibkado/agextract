@@ -60,6 +60,16 @@
         </div>
     </div>
 
+    <!-- Conversation Flow Chart -->
+    {% if total_steps > 0 %}
+    <div class="bg-gray-800/40 backdrop-blur border border-gray-700/50 rounded-2xl p-6">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Conversation Flow</h3>
+        <div style="height: 200px;">
+            <canvas id="conversationFlowChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Filters -->
     <div class="flex items-center space-x-2">
         <span class="text-xs text-gray-500 uppercase tracking-wider mr-2">Filter:</span>
@@ -182,6 +192,74 @@
     </div>
 
 </div>
+
+{% if total_steps > 0 %}
+<script>
+(function() {
+    const flowData = {{ conversation_flow_json|safe }};
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(75, 85, 99, 0.3)';
+
+    const ctx = document.getElementById('conversationFlowChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: flowData.map(d => d.chunk),
+            datasets: [
+                {
+                    label: 'Human',
+                    data: flowData.map(d => d.user),
+                    backgroundColor: '#38bdf8',
+                    borderRadius: 2,
+                },
+                {
+                    label: 'AI',
+                    data: flowData.map(d => d.agent),
+                    backgroundColor: '#6b7280',
+                    borderRadius: 2,
+                },
+                {
+                    label: 'Tool Calls',
+                    data: flowData.map(d => d.tool),
+                    backgroundColor: '#a78bfa',
+                    borderRadius: 2,
+                },
+                {
+                    label: 'System',
+                    data: flowData.map(d => d.system),
+                    backgroundColor: '#475569',
+                    borderRadius: 2,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16, usePointStyle: true, pointStyleWidth: 8, font: { size: 11 } }
+                },
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    title: { display: true, text: 'Steps', font: { size: 11 } },
+                    ticks: { font: { size: 10 } },
+                    grid: { display: false },
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, font: { size: 11 } },
+                    grid: { color: 'rgba(75, 85, 99, 0.2)' },
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
 
 <script>
     function filterSteps(filter) {
